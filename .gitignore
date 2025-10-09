@@ -137,3 +137,29 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Bun
+bun.lockb
+.bun
+
+# Expo
+.expo/
+.expo-shared/
+
+# React Native
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# Metro
+.metro-health-check*
+
+# Android/iOS
+**/android/app/build
+**/ios/Pods/
+**/ios/**/*.xcworkspace
+!**/ios/**/*.xcworkspace/contents.xcworkspacedata
+
