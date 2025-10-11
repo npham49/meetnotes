@@ -1,12 +1,14 @@
 import '@/global.css';
 
 import { NAV_THEME } from '@/lib/theme';
+import { initDatabase } from '@/lib/db';
 import { ThemeProvider } from '@react-navigation/native';
 import { PortalHost } from '@rn-primitives/portal';
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'nativewind';
+import { useEffect } from 'react';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -15,6 +17,16 @@ export {
 
 export default function RootLayout() {
   const { colorScheme } = useColorScheme();
+
+  useEffect(() => {
+    // Initialize database on app load
+    try {
+      initDatabase();
+      console.log('Database initialized');
+    } catch (error) {
+      console.error('Failed to initialize database:', error);
+    }
+  }, []);
 
   return (
     <KeyboardProvider>
