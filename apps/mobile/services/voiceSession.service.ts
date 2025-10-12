@@ -1,4 +1,4 @@
-import { getDatabase, type VoiceSession, type VoiceSessionInsert } from './db';
+import { getDatabase, type VoiceSession, type VoiceSessionInsert } from '../lib/db';
 
 /**
  * Voice Session Service
@@ -10,17 +10,14 @@ import { getDatabase, type VoiceSession, type VoiceSessionInsert } from './db';
  */
 export async function createVoiceSession(data: VoiceSessionInsert): Promise<VoiceSession> {
   const db = getDatabase();
-  
+
   const result = await db.execute(
     'INSERT INTO VoiceSession (name, transcript, summary) VALUES (?, ?, ?)',
     [data.name, data.transcript, data.summary]
   );
-  
-  const inserted = await db.execute(
-    'SELECT * FROM VoiceSession WHERE id = ?',
-    [result.insertId!]
-  );
-  
+
+  const inserted = await db.execute('SELECT * FROM VoiceSession WHERE id = ?', [result.insertId!]);
+
   return inserted.rows![0] as unknown as VoiceSession;
 }
 
@@ -38,15 +35,12 @@ export async function getAllVoiceSessions(): Promise<VoiceSession[]> {
  */
 export async function getOneVoiceSession(id: number): Promise<VoiceSession | null> {
   const db = getDatabase();
-  const result = await db.execute(
-    'SELECT * FROM VoiceSession WHERE id = ?',
-    [id]
-  );
-  
+  const result = await db.execute('SELECT * FROM VoiceSession WHERE id = ?', [id]);
+
   if (!result.rows || result.rows.length === 0) {
     return null;
   }
-  
+
   return result.rows[0] as unknown as VoiceSession;
 }
 
@@ -58,10 +52,10 @@ export async function updateVoiceSession(
   data: Partial<VoiceSessionInsert>
 ): Promise<VoiceSession | null> {
   const db = getDatabase();
-  
+
   const updates: string[] = [];
   const values: any[] = [];
-  
+
   if (data.name !== undefined) {
     updates.push('name = ?');
     values.push(data.name);
@@ -74,19 +68,16 @@ export async function updateVoiceSession(
     updates.push('summary = ?');
     values.push(data.summary);
   }
-  
+
   if (updates.length === 0) {
     return getOneVoiceSession(id);
   }
-  
+
   updates.push("updatedAt = datetime('now')");
   values.push(id);
-  
-  await db.execute(
-    `UPDATE VoiceSession SET ${updates.join(', ')} WHERE id = ?`,
-    values
-  );
-  
+
+  await db.execute(`UPDATE VoiceSession SET ${updates.join(', ')} WHERE id = ?`, values);
+
   return getOneVoiceSession(id);
 }
 
@@ -95,10 +86,7 @@ export async function updateVoiceSession(
  */
 export async function deleteVoiceSession(id: number): Promise<boolean> {
   const db = getDatabase();
-  const result = await db.execute(
-    'DELETE FROM VoiceSession WHERE id = ?',
-    [id]
-  );
-  
+  const result = await db.execute('DELETE FROM VoiceSession WHERE id = ?', [id]);
+
   return (result.rowsAffected || 0) > 0;
 }

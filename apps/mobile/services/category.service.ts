@@ -1,4 +1,4 @@
-import { getDatabase, type Category, type CategoryInsert } from './db';
+import { getDatabase, type Category, type CategoryInsert } from '../lib/db';
 
 /**
  * Category Service
@@ -10,17 +10,14 @@ import { getDatabase, type Category, type CategoryInsert } from './db';
  */
 export async function createCategory(data: CategoryInsert): Promise<Category> {
   const db = getDatabase();
-  
+
   const result = await db.execute(
     'INSERT INTO categories (name, description, icon) VALUES (?, ?, ?)',
     [data.name, data.description, data.icon]
   );
-  
-  const inserted = await db.execute(
-    'SELECT * FROM categories WHERE id = ?',
-    [result.insertId!]
-  );
-  
+
+  const inserted = await db.execute('SELECT * FROM categories WHERE id = ?', [result.insertId!]);
+
   return inserted.rows![0] as unknown as Category;
 }
 
@@ -38,15 +35,12 @@ export async function getAllCategories(): Promise<Category[]> {
  */
 export async function getOneCategory(id: number): Promise<Category | null> {
   const db = getDatabase();
-  const result = await db.execute(
-    'SELECT * FROM categories WHERE id = ?',
-    [id]
-  );
-  
+  const result = await db.execute('SELECT * FROM categories WHERE id = ?', [id]);
+
   if (!result.rows || result.rows.length === 0) {
     return null;
   }
-  
+
   return result.rows[0] as unknown as Category;
 }
 
@@ -58,10 +52,10 @@ export async function updateCategory(
   data: Partial<CategoryInsert>
 ): Promise<Category | null> {
   const db = getDatabase();
-  
+
   const updates: string[] = [];
   const values: any[] = [];
-  
+
   if (data.name !== undefined) {
     updates.push('name = ?');
     values.push(data.name);
@@ -74,19 +68,16 @@ export async function updateCategory(
     updates.push('icon = ?');
     values.push(data.icon);
   }
-  
+
   if (updates.length === 0) {
     return getOneCategory(id);
   }
-  
+
   updates.push("updatedAt = datetime('now')");
   values.push(id);
-  
-  await db.execute(
-    `UPDATE categories SET ${updates.join(', ')} WHERE id = ?`,
-    values
-  );
-  
+
+  await db.execute(`UPDATE categories SET ${updates.join(', ')} WHERE id = ?`, values);
+
   return getOneCategory(id);
 }
 
@@ -95,10 +86,7 @@ export async function updateCategory(
  */
 export async function deleteCategory(id: number): Promise<boolean> {
   const db = getDatabase();
-  const result = await db.execute(
-    'DELETE FROM categories WHERE id = ?',
-    [id]
-  );
-  
+  const result = await db.execute('DELETE FROM categories WHERE id = ?', [id]);
+
   return (result.rowsAffected || 0) > 0;
 }
