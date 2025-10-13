@@ -27,10 +27,22 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="categories"
+        name="categories/index"
         options={{
           title: 'Categories',
           tabBarIcon: ({ color, size }) => <FolderIcon size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="categories/new"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
+        name="categories/[id]"
+        options={{
+          href: null, // Hide from tab bar
         }}
       />
       <Tabs.Screen
