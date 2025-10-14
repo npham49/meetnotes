@@ -12,7 +12,7 @@ export async function createVoiceSession(data: VoiceSessionInsert): Promise<Voic
   const db = getDatabase();
 
   const result = await db.execute(
-    'INSERT INTO VoiceSession (name, transcript, summary) VALUES (?, ?, ?)',
+    'INSERT INTO VoiceSession (name, transcript, summary) VALUES (?, ?, ?) RETURNING id',
     [data.name, data.transcript, data.summary]
   );
 

@@ -3,14 +3,16 @@ import { View, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeftIcon, PlusIcon, MicIcon } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getOneCategory } from '@/services/category.service';
-import { getAllVoiceSessions } from '@/services/voiceSession.service';
+import { getAllVoiceSessions, createVoiceSession } from '@/services/voiceSession.service';
+import { toast } from 'sonner-native';
 
 export default function CategoryDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const { colorScheme } = useColorScheme();
+  const queryClient = useQueryClient();
 
   // Fetch category from database
   const { data: category, isLoading: categoryLoading, isError: categoryError } = useQuery({
@@ -19,15 +21,39 @@ export default function CategoryDetailScreen() {
     enabled: !!id,
   });
 
-  // Fetch all voice sessions (we'll filter by category later)
+  // Fetch all voice sessions
   const { data: allVoiceSessions, isLoading: notesLoading } = useQuery({
     queryKey: ['voiceSessions'],
     queryFn: getAllVoiceSessions,
   });
 
-  // Filter voice sessions by categoryId
-  // Note: The VoiceSession table doesn't have categoryId yet, so this will return empty for now
   const notes = allVoiceSessions || [];
+
+  // Create new voice session mutation
+  const createNoteMutation = useMutation({
+    mutationFn: createVoiceSession,
+    onSuccess: (newNote) => {
+      queryClient.invalidateQueries({ queryKey: ['voiceSessions'] });
+      router.push(`/(tabs)/categories/${id}/${newNote.id}`);
+    },
+    onError: (error) => {
+      console.error('Failed to create note:', error);
+      toast.error('Failed to create note');
+    },
+  });
+
+  const handleCreateNote = async () => {
+    if (!category) return;
+
+    const noteNumber = notes.length + 1;
+    const noteName = `${category.name} Note ${noteNumber}`;
+
+    createNoteMutation.mutate({
+      name: noteName,
+      transcript: '',
+      summary: null,
+    });
+  };
 
   if (categoryLoading || notesLoading) {
     return (
@@ -56,7 +82,7 @@ export default function CategoryDetailScreen() {
           Category not found
         </Text>
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => router.push('/(tabs)/categories')}
           className="bg-primary rounded-2xl px-6 py-3"
         >
           <Text className="text-white font-semibold">Go Back</Text>
@@ -72,7 +98,7 @@ export default function CategoryDetailScreen() {
           headerShown: true,
           headerTitle: category.name + ' Notes',
           headerLeft: () => (
-            <Pressable onPress={() => router.back()} className="mr-4">
+            <Pressable onPress={() => router.push('/(tabs)/categories')} className="mr-4">
               <ArrowLeftIcon size={24} color={colorScheme === 'dark' ? '#fff' : '#000'} />
             </Pressable>
           ),
@@ -106,16 +132,19 @@ export default function CategoryDetailScreen() {
 
           {/* Create New Note Button */}
           <Pressable
-            onPress={() => {
-              // TODO: Navigate to voice recording screen
-              console.log('Create new note for category:', id);
-            }}
+            onPress={handleCreateNote}
+            disabled={createNoteMutation.isPending}
             className="bg-primary rounded-2xl p-5 mb-6 active:opacity-80"
+            style={{ opacity: createNoteMutation.isPending ? 0.6 : 1 }}
           >
             <View className="flex-row items-center justify-center gap-3">
-              <MicIcon size={24} color="#fff" />
-              <Text className="text-white text-lg font-semibold">
-                Record New Note
+              {createNoteMutation.isPending ? (
+                <ActivityIndicator size="small" />
+              ) : (
+                <MicIcon size={24} />
+              )}
+              <Text className="text-secondary text-lg font-semibold">
+                {createNoteMutation.isPending ? 'Creating...' : 'Record New Note'}
               </Text>
             </View>
           </Pressable>
@@ -142,10 +171,7 @@ export default function CategoryDetailScreen() {
               {notes.map((note) => (
                 <Pressable
                   key={note.id}
-                  onPress={() => {
-                    // TODO: Navigate to note detail screen
-                    console.log('View note:', note.id);
-                  }}
+                  onPress={() => router.push(`/(tabs)/categories/${id}/${note.id}`)}
                   className="bg-card border border-border rounded-2xl p-4 active:opacity-80"
                 >
                   <View className="flex-row items-start justify-between mb-2">

@@ -28,8 +28,8 @@ export default function CategoriesScreen() {
           className="bg-primary rounded-2xl p-5 mb-6 active:opacity-80"
         >
           <View className="flex-row items-center justify-center gap-3">
-            <PlusIcon size={24} color="#fff" />
-            <Text className="text-white text-lg font-semibold">
+            <PlusIcon size={24} />
+            <Text className="text-lg text-secondary font-semibold">
               Create New Category
             </Text>
           </View>

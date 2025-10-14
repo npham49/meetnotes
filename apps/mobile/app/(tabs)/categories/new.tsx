@@ -45,7 +45,7 @@ export default function NewCategoryScreen() {
           headerShown: true,
           headerTitle: 'New Category',
           headerLeft: () => (
-            <Pressable onPress={() => router.back()} className="mr-4">
+            <Pressable onPress={() => router.push('/(tabs)/categories')} className="mr-4">
               <ArrowLeftIcon size={24} color={colorScheme === 'dark' ? '#fff' : '#000'} />
             </Pressable>
           ),
@@ -155,7 +155,7 @@ export default function NewCategoryScreen() {
           className="bg-primary rounded-xl p-4 active:opacity-80 mt-4"
           style={{ opacity: isSubmitting ? 0.5 : 1 }}
         >
-          <Text className="text-white text-center text-base font-semibold">
+          <Text className="text-white text-center text-secondary font-semibold">
             {isSubmitting ? 'Creating...' : 'Create Category'}
           </Text>
         </Pressable>
