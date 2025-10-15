@@ -34,11 +34,7 @@ export default function RootLayout() {
         if (onboardingComplete) {
           const syncMode = await getSyncMode();
 
-          if (syncMode === 'offline') {
-            await initDatabase('offline');
-          } else if (syncMode === 'online') {
-            await initDatabase('online');
-          }
+          await initDatabase(syncMode === 'online' ? 'online' : 'offline');
         }
       } catch (error) {
         console.error('Failed to initialize app:', error);

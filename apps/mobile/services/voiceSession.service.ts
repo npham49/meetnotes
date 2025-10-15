@@ -40,6 +40,7 @@ export async function getOneVoiceSession(id: number): Promise<VoiceSession | nul
   if (!result.rows || result.rows.length === 0) {
     return null;
   }
+  console.log('Fetched voice session:', result.rows[0]);
 
   return result.rows[0] as unknown as VoiceSession;
 }

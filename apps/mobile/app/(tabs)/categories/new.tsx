@@ -155,7 +155,7 @@ export default function NewCategoryScreen() {
           className="bg-primary rounded-xl p-4 active:opacity-80 mt-4"
           style={{ opacity: isSubmitting ? 0.5 : 1 }}
         >
-          <Text className="text-white text-center text-secondary font-semibold">
+          <Text className="text-center text-secondary font-semibold">
             {isSubmitting ? 'Creating...' : 'Create Category'}
           </Text>
         </Pressable>

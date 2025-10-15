@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
+import { initDatabase } from '@/lib/db';
 import { setSyncMode, setOnboardingComplete } from '@/services/storage.service';
 import { useRouter, Stack } from 'expo-router';
 import { CloudIcon, DatabaseIcon, CheckIcon } from 'lucide-react-native';
@@ -20,6 +21,7 @@ export default function OnboardingScreen() {
     try {
       await setSyncMode(selectedMode);
       await setOnboardingComplete();
+      await initDatabase(selectedMode);
       router.replace('/(tabs)');
     } catch (error) {
       console.error('Error completing onboarding:', error);

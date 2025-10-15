@@ -60,7 +60,7 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="categories/[id]"
+        name="categories/[id]/index"
         options={{
           href: null, // Hide from tab bar
         }}

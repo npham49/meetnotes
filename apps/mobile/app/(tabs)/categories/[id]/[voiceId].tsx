@@ -4,7 +4,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeftIcon, Trash2Icon, MicIcon, CheckIcon } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getOneVoiceSession, deleteVoiceSession } from '@/services/voiceSession.service';
+import { getOneVoiceSession, deleteVoiceSession, updateVoiceSession } from '@/services/voiceSession.service';
 import { toast } from 'sonner-native';
 import { useSpeechToText, WHISPER_TINY_EN } from 'react-native-executorch';
 import { AudioManager, AudioRecorder } from 'react-native-audio-api';
@@ -18,30 +18,113 @@ export default function VoiceNoteDetailScreen() {
 
   const [transcription, setTranscription] = useState('');
   const [isRecording, setIsRecording] = useState(false);
-
-  const [recorder] = useState(
-    () =>
-      new AudioRecorder({
-        sampleRate: 16000,
-        bufferLengthInSamples: 1600,
-      })
-  );
+  const [recorder, setRecorder] = useState<AudioRecorder | null>(null);
+  const [audioReady, setAudioReady] = useState(false);
 
   const model = useSpeechToText({
     model: WHISPER_TINY_EN,
   });
 
   useEffect(() => {
-    AudioManager.setAudioSessionOptions({
-      iosCategory: 'playAndRecord',
-      iosMode: 'spokenAudio',
-      iosOptions: ['allowBluetooth', 'defaultToSpeaker'],
-    });
-    AudioManager.requestRecordingPermissions();
+    let mounted = true;
+    let recorderInstance: AudioRecorder | null = null;
+    let interruptionSubscription: any = null;
+
+    const setupAudio = async () => {
+      try {
+        // Request permissions FIRST
+        const granted = await AudioManager.requestRecordingPermissions();
+        if (!granted || !mounted) {
+          toast.error('Microphone permission denied');
+          return;
+        }
+
+        // Configure audio session options with more compatible settings for simulator
+        AudioManager.setAudioSessionOptions({
+          iosCategory: 'playAndRecord',
+          iosMode: 'measurement', // Changed from 'spokenAudio' for better simulator compatibility
+          iosOptions: ['defaultToSpeaker'],
+        });
+
+        // Enable audio interruption observation
+        AudioManager.observeAudioInterruptions(true);
+
+        // Listen for audio interruptions
+        interruptionSubscription = AudioManager.addSystemEventListener(
+          'interruption',
+          (event) => {
+            console.log('Audio interruption:', event);
+            if (event.type === 'ended') {
+              // Try to reactivate session after interruption
+              AudioManager.setAudioSessionActivity(true).catch(console.error);
+            }
+          }
+        );
+
+        // Activate the audio session
+        const activated = await AudioManager.setAudioSessionActivity(true);
+        if (!activated || !mounted) {
+          toast.error('Failed to activate audio session');
+          return;
+        }
+
+        // Longer delay for simulator to stabilize
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // Only create recorder AFTER audio session is configured and activated
+        recorderInstance = new AudioRecorder({
+          sampleRate: 16000,
+          bufferLengthInSamples: 1600,
+        });
+
+        if (mounted) {
+          setRecorder(recorderInstance);
+          setAudioReady(true);
+        }
+      } catch (error) {
+        console.error('Failed to setup audio:', error);
+        toast.error('Failed to setup audio');
+      }
+    };
+
+    setupAudio();
+
+    return () => {
+      mounted = false;
+      refetch();
+
+      // reset all states
+      setAudioReady(false);
+      setIsRecording(false);
+      setTranscription('');
+      setRecorder(null);
+
+      // Disable interruption observation
+      AudioManager.observeAudioInterruptions(false);
+
+      // Remove interruption listener
+      if (interruptionSubscription) {
+        interruptionSubscription.remove();
+      }
+
+      // Cleanup recorder
+      if (recorderInstance) {
+        try {
+          recorderInstance.stop();
+        } catch (e) {
+          // Ignore errors on cleanup
+        }
+      }
+
+      // Deactivate audio session
+      AudioManager.setAudioSessionActivity(false).catch(() => {
+        // Ignore errors on cleanup
+      });
+    };
   }, []);
 
   // Fetch voice session
-  const { data: note, isLoading, isError } = useQuery({
+  const { data: note, isLoading, isError, refetch } = useQuery({
     queryKey: ['voiceSession', voiceId],
     queryFn: () => getOneVoiceSession(Number(voiceId)),
     enabled: !!voiceId,
@@ -50,16 +133,10 @@ export default function VoiceNoteDetailScreen() {
   // Update voice session transcription when changed
   const updateMutation = useMutation({
     mutationFn: (newTranscript: string) =>
-      getOneVoiceSession(Number(voiceId)).then((note) =>
-        note
-          ? {
-            ...note,
-            transcript: newTranscript,
-          }
-          : null
-      ),
+      updateVoiceSession(Number(voiceId), { transcript: newTranscript }),
     onSuccess: (updatedNote) => {
       toast.success('Transcript updated');
+      setTranscription('');
       if (updatedNote) {
         queryClient.invalidateQueries({ queryKey: ['voiceSessions'] });
         queryClient.invalidateQueries({ queryKey: ['voiceSession', voiceId] });
@@ -90,30 +167,77 @@ export default function VoiceNoteDetailScreen() {
   };
 
   const handleRecord = async () => {
+    if (!recorder || !audioReady) {
+      toast.error('Audio system not ready');
+      return;
+    }
+
     if (isRecording) {
-      // set a 500ms timeout to allow model to process final audio
-      setTimeout(() => {
-        setIsRecording(false);
+      // Stop recording
+      setIsRecording(false);
+
+      try {
         recorder.stop();
         model.streamStop();
+
+        // Wait a bit for final processing
+        await new Promise(resolve => setTimeout(resolve, 300));
+
         if (model.committedTranscription) {
-          setTranscription(model.committedTranscription);
+          console.log('Final transcription:', model.committedTranscription);
+          setTranscription(model.committedTranscription + model.nonCommittedTranscription);
         }
-      }, 500);
+      } catch (error) {
+        console.error('Error stopping recording:', error);
+        toast.error('Failed to stop recording');
+      }
     } else {
-      setIsRecording(true);
-      setTranscription('');
-      recorder.onAudioReady(({ buffer }) => {
-        model.streamInsert(buffer.getChannelData(0));
-      });
-      recorder.start();
+      // Start recording
       try {
+        // Ensure audio session is active before starting
+        const isActive = await AudioManager.setAudioSessionActivity(true);
+        if (!isActive) {
+          toast.error('Audio session not active');
+          return;
+        }
+
+        // Small delay to let audio session stabilize (important for simulator)
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        setIsRecording(true);
+        setTranscription('');
+
+        // Setup audio callback
+        recorder.onAudioReady(({ buffer }) => {
+          try {
+            const audioData = buffer.getChannelData(0);
+            model.streamInsert(audioData);
+          } catch (err) {
+            console.error('Error processing audio buffer:', err);
+          }
+        });
+
+        // Start recorder first
+        recorder.start();
+
+        // Small delay before starting model (helps with simulator stability)
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        // Then start model streaming
         await model.stream();
       } catch (error) {
         console.error('Error during recording:', error);
-        toast.error('Recording failed');
+        const errorMsg = error instanceof Error ? error.message : 'Recording failed';
+        toast.error(errorMsg);
+        setIsRecording(false);
+
+        // Try to recover the audio session
+        try {
+          recorder.stop();
+        } catch (stopError) {
+          console.error('Error stopping recorder after failure:', stopError);
+        }
       }
-      setIsRecording(false);
     }
   };
 
@@ -153,7 +277,7 @@ export default function VoiceNoteDetailScreen() {
           Note not found
         </Text>
         <Pressable
-          onPress={() => router.push(`/(tabs)/categories/${id}`)}
+          onPress={() => router.replace(`/(tabs)/categories/${id}`)}
           className="bg-primary rounded-2xl px-6 py-3"
         >
           <Text className="text-white font-semibold">Go Back</Text>
@@ -169,15 +293,15 @@ export default function VoiceNoteDetailScreen() {
           headerShown: true,
           headerTitle: note.name,
           headerLeft: () => (
-            <Pressable onPress={() => router.push(`/(tabs)/categories/${id}`)} className="mr-4">
+            <Pressable onPress={() => router.replace(`/(tabs)/categories/${id}`)} className="mr-4">
               <ArrowLeftIcon size={24} color={colorScheme === 'dark' ? '#fff' : '#000'} />
             </Pressable>
           ),
         }}
       />
 
-      <ScrollView className="flex-1 p-6">
-        <Text className="text-foreground text-base leading-7 mb-40">
+      <ScrollView className="flex-1 p-6 mb-40">
+        <Text className="text-foreground text-base leading-7">
           {transcription || note.transcript || 'No transcript available yet. Tap the Record button to start recording.'}
         </Text>
         {(isRecording || model.isGenerating) && (model.committedTranscription || model.nonCommittedTranscription) && (
@@ -208,10 +332,10 @@ export default function VoiceNoteDetailScreen() {
 
           <Pressable
             onPress={handleRecord}
-            disabled={!model.isReady}
+            disabled={!model.isReady || !audioReady}
             className="items-center active:opacity-60"
           >
-            <View className="bg-primary w-16 h-16 rounded-full items-center justify-center mb-1" style={{ opacity: !model.isReady ? 0.5 : 1 }}>
+            <View className="bg-primary w-16 h-16 rounded-full items-center justify-center mb-1" style={{ opacity: !model.isReady || !audioReady ? 0.5 : 1 }}>
               {isRecording || model.isGenerating ? (
                 <ActivityIndicator size="small" className="text-secondary" />
               ) : (
@@ -219,7 +343,7 @@ export default function VoiceNoteDetailScreen() {
               )}
             </View>
             <Text className="text-xs text-muted-foreground">
-              {isRecording ? 'Stop' : 'Record'}
+              {!audioReady ? 'Setting up...' : isRecording ? 'Stop' : 'Record'}
             </Text>
           </Pressable>
 
